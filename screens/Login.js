@@ -9,12 +9,13 @@ import {
   TouchableOpacity,
   Platform,
   ScrollView,
-  PermissionsAndroid,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import Theme from "../Theme";
 import { connect, useSelector } from "react-redux";
 import AsyncStorage from '@react-native-community/async-storage';
+import {requestLogin} from "../utils/api"
 
 class Login extends React.Component {
   constructor (props) {
@@ -24,9 +25,6 @@ class Login extends React.Component {
       email: "",
       password: "",
       password2: "",
-      location: this.props.location?.latlng == undefined ? "" : this.props.location?.latlng,
-      address: this.props.location?.address == undefined ? "" : this.props.location?.address,
-      fetching: false,
       error: "",
       isValid: true,
       loading: false,
@@ -40,7 +38,7 @@ class Login extends React.Component {
       this.props.navigation.navigate("Home");
   }
 
-  onPressSignIn = () => {
+  onPressSignIn = async() => {
     const { email, password, password2 } = this.state;
 
     if (!email) {
@@ -62,15 +60,33 @@ class Login extends React.Component {
       })
       return
     }
-    //else if (!__isValidEmail(email)) {
-    //   setError("Invalid Email")
-    //   this.setState({
-    //     isValid: false,
-    //   })
-    //   return
-    // }
 
-    this.props.navigation.navigate('Home');
+
+    this.setState({loading: true})
+    let data = {
+        "UserNameInput": email,
+        "passwordInput": password,
+        "keyInput": "",
+        "imieIDInput": ""
+    }
+
+    let response = await requestLogin(data);
+    let responseData = response?.data;
+
+    if(responseData == undefined || responseData == null || responseData?.length < 1)
+    {
+      // Fail
+      alert("User name or password is incorrect")
+    }
+    else
+    {
+      await AsyncStorage.setItem("UserID", responseData[0]?.UserID);
+      await AsyncStorage.setItem("SessionID", responseData[0]?.SessionID);
+      await AsyncStorage.setItem("GPSInterval", responseData[0]?.GPSInterval);
+      await AsyncStorage.setItem("PhotoMandatory", responseData[0]?.PhotoMandatory);
+      this.props.navigation.navigate('Home');
+    }
+    this.setState({loading: false})
   }
 
   onPressSignUp () {
@@ -95,75 +111,6 @@ class Login extends React.Component {
     })
   }
   
-  _getCurrentLocation = () => {
-    var that = this;
-      this.setState({loading: true})
-      if(Platform.OS === 'ios') {
-        this.callLocation(that);
-      } else {
-        async function requestLocationPermission() {
-          try {
-            const granted = await PermissionsAndroid.request(
-              PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,{
-                'title': 'Location Access Required',
-                'message': 'This App needs to Access your location'
-              }
-            )
-            if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-              //To Check, If Permission is granted
-              that.callLocation(that);
-            } else {
-              // alert("Permission Denied");
-            }
-          } catch (err) {
-            console.warn(err)
-            that.setState({loading: false})
-          }
-        }
-        requestLocationPermission();
-      }   
-  }
-
-  callLocation(that){
-    //alert("callLocation Called");
-      Geolocation.getCurrentPosition(
-        //Will give you the current location
-         (position) => {
-            const currentLongitude = Number(JSON.stringify(position.coords.longitude)).toFixed(7);
-            //getting the Longitude from the location json
-            const currentLatitude = Number(JSON.stringify(position.coords.latitude)).toFixed(7);
-            let location = {
-              lat: currentLatitude,
-              lng: currentLongitude,
-            }
-            that.setState({ location: location });
- 
-           Geocoder.from(currentLatitude, currentLongitude)
-            .then(json => {
-              var addressComponent = json.results[0].address_components[0];
-              const formatted_address = json.results[0].formatted_address;
-              that.setState({ address: formatted_address });
-              that.setState({loading: false})
-
-              let locationData = {
-                latlng: location,
-                address: formatted_address,
-              }
-              this.props.updateLocation(locationData);
-            })
-            .catch(error => {
-              console.warn(error);
-              that.setState({loading: false})
-            });
-         },
-         (error) => {
-           console.log(error.message)
-           that.setState({loading: false})
-         },
-         { enableHighAccuracy: false, timeout: 20000, maximumAge: 1000 }
-      );
-  }
-
   render() {
     const { email, password, password2, error, isValid, loading } = this.state
 

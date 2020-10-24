@@ -3,45 +3,46 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
-  TextInput,
   TouchableOpacity,
   Platform,
   ScrollView,
   PermissionsAndroid,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import Theme from "../Theme";
-import { connect, useSelector } from "react-redux";
-import { updateUserData, updateLocation } from "../redux";
 import AsyncStorage from '@react-native-community/async-storage';
 import Geolocation from '@react-native-community/geolocation';
 import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import LinearGradient from "react-native-linear-gradient";
 import Footer from "../components/Footer";
-import ImagePicker from 'react-native-image-crop-picker';
+import ImagePicker from 'react-native-image-picker';
+import ImageResizer from 'react-native-image-resizer';
 import BackgroundTimer from "react-native-background-timer";
 import BackgroundService from 'react-native-background-actions';
-
-
+import Toast from 'react-native-simple-toast';
+import BackgroundGeolocation from "react-native-background-geolocation";
+import {requestPunch, requestGps} from "../utils/api"
+import moment from "moment"
+import { API_URL } from '../utils/api';
 
 const options = {
-    taskName: 'Punch',
-    taskTitle: 'Punch',
-    taskDesc: 'Punch App',
-    taskIcon: {
-        name: 'ic_launcher',
-        type: 'mipmap',
-    },
-    color: '#ff00ff',
-    linkingURI: '', // See Deep Linking for more info
-    parameters: {
-        delay: 1000,
-    },
+  taskName: 'Punch',
+  taskTitle: 'Punch',
+  taskDesc: 'Punch App',
+  taskIcon: {
+      name: 'ic_launcher',
+      type: 'mipmap',
+  },
+  color: '#ff00ff',
+  linkingURI: '', // See Deep Linking for more info
+  parameters: {
+      delay: 1000,
+  },
 };
 
-
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
 //Home
 class Home extends React.Component {
   constructor (props) {
@@ -56,31 +57,148 @@ class Home extends React.Component {
       punchType: -1,
       uploadUri: "",
       second: 0,
+
+      UserID: "",
+      sessinID: "",
+      GPSInterval: "",
+      PhotoMandatory: "",
     }
     this.watchID = null;
   }
   async componentDidMount  () {
+    let UserID = await AsyncStorage.getItem("UserID");
+    let sessinID = await AsyncStorage.getItem("SessionID");
+    let GPSInterval = await AsyncStorage.getItem("GPSInterval");
+    let PhotoMandatory = await AsyncStorage.getItem("PhotoMandatory");
+
+    this.setState({sessinID});
+
     this._getCurrentLocation();
+    //this.onLoadBackgroundService()
+
     //this.onStart();
 
-    
     //await BackgroundService.start(this.veryIntensiveTask, options);
     //await BackgroundService.updateNotification({taskDesc: 'New ExampleTask description'}); // Only Android, iOS will ignore this call
     // iOS will also run everything here in the background until .stop() is called
     // await BackgroundService.stop();
-
   }
   
   componentWillUnmount() {
     this.watchID != null && Geolocation.clearWatch(this.watchID);
+    BackgroundGeolocation.removeListeners();
   }
   
+  onLoadBackgroundService () {
+    // This handler fires whenever bgGeo receives a location update.
+    BackgroundGeolocation.onLocation(this.onLocation, this.onError);
+
+    // This handler fires when movement states changes (stationary->moving; moving->stationary)
+    BackgroundGeolocation.onMotionChange(this.onMotionChange);
+
+    // This event fires when a change in motion activity is detected
+    BackgroundGeolocation.onActivityChange(this.onActivityChange);
+
+    // This event fires when the user toggles location-services authorization
+    BackgroundGeolocation.onProviderChange(this.onProviderChange);
+
+    BackgroundGeolocation.onHttp(response => {
+      console.log('http',response);
+      console.log('[http] response: ', response.success, response.status, response.responseText);
+    });
+
+    BackgroundGeolocation.onHeartbeat((event) => {
+      console.log('[onHeartbeat] ', event);
+
+      // You could request a new location if you wish.
+      BackgroundGeolocation.getCurrentPosition({
+        samples: 1,
+        persist: true
+      }).then((location) => {
+        console.log('[getCurrentPosition] ', location);
+        // will call API to send location with the token
+        // this.sendLocation({ lat: location.coords.latitude, lng: location.coords.longitude, dt: location.timestamp, uuid: location.uuid });
+      }).catch(err => console.log('---------- getCurrentPosition Error---------------', err));
+    })
+
+    ////
+    // 2.  Execute #ready method (required)
+    //
+    const gpsURL = API_URL + "mobileappgpsdata";
+
+    BackgroundGeolocation.ready({
+      // Geolocation Config
+      desiredAccuracy: BackgroundGeolocation.DESIRED_ACCURACY_HIGH,
+      distanceFilter: 0,
+
+      // android options
+      locationUpdateInterval: 15000,
+      fastestLocationUpdateInterval: 10000,
+      allowIdenticalLocations: true,
+
+      // Activity Recognition
+      stopTimeout: 5,
+      disableStopDetection: false, // this is not recommended because will NEVER disable location service until we call background geo location stop
+
+      // Application config
+      // debug: true, // <-- enable this hear sounds for background-geolocation life-cycle.
+      logLevel: BackgroundGeolocation.LOG_LEVEL_VERBOSE,
+      stopOnTerminate: false,   // <-- Allow the background-service to continue tracking when user closes the app.
+      startOnBoot: true,        // <-- Auto start tracking when device is powered-up.
+      // HTTP / SQLite config
+      url: gpsURL,
+      batchSync: false,       // <-- [Default: false] Set true to sync locations to server in a single HTTP request.
+      autoSync: true,         // <-- [Default: true] Set true to sync each location to server as it arrives.
+      heartbeatInterval: 5,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      params: {               // <-- Optional HTTP params
+
+      }
+    }, (state) => {
+      console.log("- BackgroundGeolocation is configured and ready: ", state.enabled);
+      //this._getCurrentLocation();
+
+      if (!state.enabled) {
+        ////
+        // 3. Start tracking!
+        //
+        BackgroundGeolocation.start(function() {
+          console.log("- Start success");
+        });
+      }
+    });
+  }
+
+
+  onLocation(location) {
+    console.log('[location] -', location);
+  }
+  onError(error) {
+    console.warn('[location] ERROR -', error);
+  }
+  onActivityChange(event) {
+    console.log('[activitychange] -', event);  // eg: 'on_foot', 'still', 'in_vehicle'
+  }
+  onProviderChange(provider) {
+    console.log('[providerchange] -', provider.enabled, provider.status);
+  }
+  onMotionChange(event) {
+    console.log('[motionchange] -', event.isMoving, event.location);
+  }
+
   veryIntensiveTask = async (taskDataArguments) => {
     // Example of an infinite loop task
     const { delay } = taskDataArguments;
     await new Promise( async (resolve) => {
         for (let i = 0; BackgroundService.isRunning(); i++) {
-          await sleep(3000)
+          await sleep(4000)
+          this.setState({
+            second: this.state.second + 1,
+          })
+          console.log('------------', this.state.second);
           this._getCurrentLocation();
         }
     });
@@ -89,9 +207,8 @@ class Home extends React.Component {
   _getCurrentLocation = () => {
     var that = this;
     const {loading} = this.state;
-    if (loading == true)
-      return;
-
+    // if (loading == true)
+    //   return;
       this.setState({loading: true})
       if(Platform.OS === 'ios'){
         this.callLocation(that);
@@ -104,6 +221,7 @@ class Home extends React.Component {
                 'message': 'This App needs to Access your location'
               }
             )
+
             if (granted === PermissionsAndroid.RESULTS.GRANTED) {
               that.callLocation(that);
             } else {
@@ -111,7 +229,7 @@ class Home extends React.Component {
               that.setState({loading: false})
             }
           } catch (err) {
-            console.warn(err)
+            console.warn('------------ 22222', err)
             that.setState({loading: false})
           }
         }
@@ -148,10 +266,13 @@ class Home extends React.Component {
           that.setState({ initialRegion, markers });
           that.setState({loading: false})
           console.log('=================================', location)
+          let strMessage = "Lat: " + location.latitude + ", Lng: " + location.longitude
+          Toast.show(strMessage)
         },
 
         (error) => {
           that.setState({loading: false})
+          console.log("**************** error *****************", error)
         },
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 }
      );
@@ -192,7 +313,6 @@ class Home extends React.Component {
   onPressBreakIn () {
     this.setState({punchType: 5})
     this.ImagePicker();
-
   }
 
   onPressBreakOut () {
@@ -202,44 +322,72 @@ class Home extends React.Component {
 
   ImagePicker = () => {
 
-    ImagePicker.openCamera({
-      width: 300,
-      height: 300,
-      cropping: true,
-    }).then(image => {
-      console.log(image);
-      this.setState({uploadUri: image.path})
-    }).catch(err => {
-      console.log(err);
-      
+    const options = {
+      maxWidth: 2000,
+      maxHeight: 2000,
+      storageOptions: {
+        skipBackup: true,
+        path: 'images'
+      }
+    };
+
+    ImagePicker.launchCamera(options, response => {
+    if (response.didCancel) {
+        console.log('User cancelled image picker');
+    } else if (response.error) {
+        console.log('ImagePicker Error: ', response.error);
+    } else if (response.customButton) {
+        console.log('User tapped custom button: ', response.customButton);
+    } else {
+        let uri = response.uri;
+        let uploadUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
+        let fileNames = uri.split("/");
+        let fileName = fileNames[fileNames.length - 1];
+
+        // this.setState({
+        //   fileName: fileName,
+        //   fileSize: response.fileSize,
+        //   fileData: response.data,
+        //   fileType: response.type,
+        //   fileUri: uploadUri  //response.uri
+        //  });
+
+         this.sendPunch(response);
+        }
     });
+  }
 
+  async sendPunch (photoData) {
+    const { UserID, sessinID, GPSInterval, PhotoMandatory, initialRegion } = this.state;
+   
+    let realLocation = initialRegion.latitude + ", " + initialRegion.longitude;
+    let currentDate =  moment(new Date()).format('YYYY-MM-DD hh:mm:ss');
 
-    // const options = {
-    //   maxWidth: 2000,
-    //   maxHeight: 2000,
-    //   storageOptions: {
-    //     skipBackup: true,
-    //     path: 'images'
-    //   }
-    // };
-    // ImagePicker.showImagePicker(options, response => {
-    //   if (response.didCancel) {
-    //     console.log('User cancelled image picker');
-    //   } else if (response.error) {
-    //     console.log('ImagePicker Error: ', response.error);
-    //   } else if (response.customButton) {
-    //     console.log('User tapped custom button: ', response.customButton);
-    //   } else {
-    //     const source = { uri: response.uri };
-    //     this.setState({
-    //       selectedPictureUri: response.uri,
-    //       uploadUri: response.uri,
-    //     });
-    //     this.imageResizer(response.uri)
-    //     // this.uploadImage(response.uri);
-    //   }
-    // });
+    this.setState({loading: true})
+
+    let data = {
+        "UserIDInput": "11",
+        "SessionIDInput": sessinID,
+        "RealPunchLocationInput": realLocation,
+        "DateTimeInput": currentDate,
+        "SelfiePhotoInput": photoData.data
+    }
+
+    console.log('----- request punch data ----', realLocation);
+
+    let response = await requestPunch(data);
+
+    console.log('----- response punch data ----', response);
+
+    if(response == undefined)
+    {
+      // Fail
+    }
+    else
+    {
+  
+    }
+    this.setState({loading: false})
   }
 
   onStart = () => {
@@ -252,19 +400,9 @@ class Home extends React.Component {
           second: this.state.second + 1,
       })
       console.log('------------', this.state.second);
-    }, 1000);
+      //this._getCurrentLocation();
+    }, 5000);
   }
-
-  // onPause = () => {
-  //   BackgroundTimer.clearInterval(this._interval);
-  // }
-
-  // onReset = () => {
-  //   this.setState({
-  //     second: 0,
-  //   });
-  //   BackgroundTimer.clearInterval(this._interval);
-  // }
 
   render() {
     const { loading, markers, visibleOther } = this.state
@@ -279,15 +417,6 @@ class Home extends React.Component {
               style={styles.mainWrapper}
               >
               <View style={styles.headerGroup}>
-                  {/* <TouchableOpacity onPress={() => this.props?.navigation.goBack()}
-                    style={{flex: 1, marginTop: 5}}
-                  >
-                  <Image
-                      source={Theme.back}
-                      style={{ height: 20, width: 20, resizeMode: "contain"}}
-                  />
-                  </TouchableOpacity> */}
-
                   <View
                     style={{
                         flex: 12,
@@ -299,16 +428,17 @@ class Home extends React.Component {
                         My Location
                     </Text>
                   </View>
-                  {/* <TouchableOpacity>
-                  <Image
-                    source={Theme.heard}
-                    style={{
-                      width: 25,
-                      height: 25,
-                      resizeMode: "contain",
-                    }}
-                  />
-                  </TouchableOpacity> */}
+                  <TouchableOpacity onPress={()=>this.props.navigation.navigate("History")}>
+                    <Image
+                      source={Theme.arrowRight}
+                      style={{
+                        width: 25,
+                        height: 25,
+                        resizeMode: "contain",
+                        tintColor: "white"
+                      }}
+                    />
+                  </TouchableOpacity>
               </View>
             </LinearGradient>
         { loading && 
@@ -422,7 +552,7 @@ class Home extends React.Component {
         </View>
         <View style={{height: 80}}></View>
         </ScrollView>
-        <Footer focusedTabButton="Home" navigation={this.props.navigation} />
+        {/* <Footer focusedTabButton="Home" navigation={this.props.navigation} /> */}
       </View>
     );
   }

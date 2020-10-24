@@ -17,8 +17,7 @@ import Theme from "../Theme";
 import { connect } from "react-redux";
 import { ConfirmDialog } from 'react-native-simple-dialogs';
 import Geolocation from '@react-native-community/geolocation';
-// import { updateEventData, updateAllNotification, updateMySenderNotification, updateGroupMessage, updateUserData } from "../redux";
-import { validateAll } from 'indicative/validator';
+import MapView, { PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import { } from 'react-native';
 import AsyncStorage from '@react-native-community/async-storage'
 import Spinner from 'react-native-loading-spinner-overlay';
@@ -36,125 +35,100 @@ const DATA = [
     id: 1,
     date: "04/01/2020 13:26:46",
     state: "Out",
-    location: {lat: 43.12344533, lng: -122.88244232}
+    location: {lat: 37.78825096, lng: -122.43243409}
   },
   {
     id: 2,
     date: "04/02/2020 17:15:33",
     state: "Out",
-    location: {lat: 41.12344533, lng: -122.99545208}
+    location: {lat: 37.77825096, lng: -122.44243409}
   }
   ,  {
     id: 3,
     date: "04/03/2020 14:23:12",
     state: "In",
-    location: {lat: 44.12344533, lng: -121.54578433}
+    location: {lat: 37.78125096, lng: -122.43943409}
   }
   ,
   {
     id: 4,
     date: "04/04/2020 16:12:09",
     state: "Out",
-    location: {lat: 45.12344533, lng: -122.33545439}
+    location: {lat: 37.70825096, lng: -122.4243409}
   },
   {
     id: 5,
     date: "04/05/2020 17:12:13",
     state: "In",
-    location: {lat: 44.12344533, lng: -122.33545439}
+    location: {lat: 37.76625096, lng: -122.42343409}
   },
   {
     id: 6,
     date: "04/01/2020 13:26:46",
     state: "Out",
-    location: {lat: 43.12344533, lng: -122.88244232}
+    location: {lat: 37.78825096, lng: -122.43243409}
   },
   {
     id: 7,
     date: "04/02/2020 17:15:33",
     state: "Out",
-    location: {lat: 41.12344533, lng: -122.99545208}
+    location: {lat: 37.77825096, lng: -122.44243409}
   }
   ,  {
     id: 8,
     date: "04/03/2020 14:23:12",
     state: "In",
-    location: {lat: 44.12344533, lng: -121.54578433}
+    location: {lat: 37.78125096, lng: -122.43943409}
   }
   ,
   {
     id: 9,
     date: "04/04/2020 16:12:09",
     state: "Out",
-    location: {lat: 45.12344533, lng: -122.33545439}
+    location: {lat: 37.70825096, lng: -122.4243409}
   },
   {
     id: 10,
     date: "04/05/2020 17:12:13",
     state: "In",
-    location: {lat: 44.12344533, lng: -122.33545439}
+    location: {lat: 37.76625096, lng: -122.42343409}
   },
   {
     id: 11,
-    date: "04/01/2020 13:26:46",
-    state: "Out",
-    location: {lat: 43.12344533, lng: -122.88244232}
+    date: "04/05/2020 17:12:13",
+    state: "In",
+    location: {lat: 37.76625096, lng: -122.42343409}
   },
   {
     id: 12,
-    date: "04/02/2020 17:15:33",
-    state: "Out",
-    location: {lat: 41.12344533, lng: -122.99545208}
-  }
-  ,  {
-    id: 13,
-    date: "04/03/2020 14:23:12",
-    state: "In",
-    location: {lat: 44.12344533, lng: -121.54578433}
-  }
-  ,
-  {
-    id: 14,
-    date: "04/04/2020 16:12:09",
-    state: "Out",
-    location: {lat: 45.12344533, lng: -122.33545439}
-  },
-  {
-    id: 15,
-    date: "04/05/2020 17:12:13",
-    state: "In",
-    location: {lat: 44.12344533, lng: -122.33545439}
-  },
-  {
-    id: 61,
     date: "04/01/2020 13:26:46",
     state: "Out",
-    location: {lat: 43.12344533, lng: -122.88244232}
+    location: {lat: 37.78825096, lng: -122.43243409}
   },
   {
-    id: 17,
+    id: 13,
     date: "04/02/2020 17:15:33",
     state: "Out",
-    location: {lat: 41.12344533, lng: -122.99545208}
+    location: {lat: 37.77825096, lng: -122.44243409}
   }
   ,  {
-    id: 18,
+    id: 14,
     date: "04/03/2020 14:23:12",
     state: "In",
-    location: {lat: 44.12344533, lng: -121.54578433}
+    location: {lat: 37.78125096, lng: -122.43943409}
   }
   ,
   {
-    id: 19,
+    id: 15,
     date: "04/04/2020 16:12:09",
     state: "Out",
-    location: {lat: 45.12344533, lng: -122.33545439}
+    location: {lat: 37.70825096, lng: -122.4243409}
   },
   {
-    id: 20,
+    id: 10,
     date: "04/05/2020 17:12:13",
     state: "In",
-    location: {lat: 44.12344533, lng: -122.33545439}
+    location: {lat: 37.76625096, lng: -122.42343409}
   },
 ]
 
@@ -162,10 +136,12 @@ let _this = null;
 class History extends React.Component {
   constructor (props) {
     super(props);
-
     this.state = {
       loading: false,
-    };
+      markers: [],
+      initialRegion: "",
+      showMap: false,
+    }
 
     _this = this;
   }
@@ -181,17 +157,32 @@ class History extends React.Component {
   }
 
   onPressedItem (item) {
-    this.props.navigation.navigate("Detail", {item});
+    let markers = [];
+    let location = {
+      latitude: parseFloat(item.location.lat),
+      longitude: parseFloat(item.location.lng),
+    }
+    
+    let newMarker = {
+      latlng: location,
+      title: "my location",
+      description: "current position",
+    }
+    markers.push(newMarker);
+
+    let initialRegion={
+      latitude: parseFloat(item.location.lat),
+      longitude: parseFloat(item.location.lng),
+      latitudeDelta: 0.0922,
+      longitudeDelta: 0.0421,
+    }
+
+    this.setState({ initialRegion, markers, showMap: true });
   }
 
   renerItem = (item, index) => {
     return (
       <View style={[styles.itemGroup, index % 2 != 0 ? { backgroundColor: 'white' } : {backgroundColor: '#f9f9f9'} ]}>
-        {/* <TouchableOpacity style={styles.itemOne} onPress={()=>this.onPressedItem(item)}>
-          <Text style={[styles.textOne, {color: Theme.primary}]}>
-            View Details({item.id})
-          </Text>
-        </TouchableOpacity> */}
         <View style={styles.itemOne}>
           <Text style={styles.textOne}>
             {item.date}
@@ -202,20 +193,46 @@ class History extends React.Component {
             {item.state}
           </Text>
         </View>
-        <View style={styles.itemOne}>
+        <TouchableOpacity style={styles.itemOne} onPress={() => this.onPressedItem(item)}>
           <Text style={styles.textOne}>
             {item.location.lat}
           </Text>
           <Text style={styles.textOne}>
             {item.location.lng}
           </Text>
-        </View>
+        </TouchableOpacity>
       </View>
     )
   }
 
+  renderFooter () {
+    const { initialRegion, markers } = this.state;
+    return (
+      <View style={styles.mapGroup}>
+          {initialRegion != "" && markers.length > 0 &&
+            <MapView
+              initialRegion={initialRegion}
+              provider={PROVIDER_GOOGLE}
+              mapType="standard" // standard, none, satellite, hybrid, terrain, mutedStandard(iOS 11.0+ only)
+              style={styles.map}
+              region={initialRegion}
+              >
+                { markers.map((marker) => (
+                    <Marker
+                      coordinate={marker.latlng}
+                      title={marker.title}
+                      description={marker.description}
+                    ></Marker>
+                  ))
+                }
+            </MapView>
+          }
+        </View>
+    )
+  }
+
   render() {
-    const { loading } = this.state;
+    const { loading, showMap } = this.state;
 
     return (
       <View style={styles.container}>
@@ -227,6 +244,15 @@ class History extends React.Component {
               style={styles.mainWrapper}
               >
               <View style={styles.headerGroup}>
+                  <TouchableOpacity onPress={() => this.props?.navigation.goBack()}
+                    style={{flex: 1, marginTop: 5}}
+                    >
+                    <Image
+                        source={Theme.back}
+                        style={{ height: 20, width: 20, resizeMode: "contain"}}
+                    />
+                  </TouchableOpacity>
+
                   <View
                     style={{
                         flex: 12,
@@ -248,12 +274,11 @@ class History extends React.Component {
                     ListHeaderComponent={<View style={{height: 20}}></View>}
                     renderItem={({item, index}) => this.renerItem(item, index)}
                     keyExtractor={item => item.id}
-                    ListFooterComponent={<View style={{height: 80}}></View>}
+                    // ListFooterComponent={}
                 />
-              
-            <Footer focusedTabButton="History" navigation={this.props.navigation} />
+                {showMap && this.renderFooter()}
+            {/* <Footer focusedTabButton="History" navigation={this.props.navigation} /> */}
           </View>
-
       );
     }
 }
@@ -354,5 +379,15 @@ const styles = StyleSheet.create({
     color: Theme.black,
     fontSize: Theme.fontText,
     textAlign: "center",
+  },
+  mapGroup: {
+    height:  200,
+    backgroundColor: 'lightgrey',
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  map: {
+    width: "100%",
+    height: "100%"
   },
 })

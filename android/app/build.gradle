@@ -83,6 +83,9 @@ project.ext.react = [
 
 apply from: "../../node_modules/react-native/react.gradle"
 
+Project background_geolocation = project(':react-native-background-geolocation')    // ADD THIS LINE
+apply from: "${background_geolocation.projectDir}/app.gradle"       // ADD THIS LINE
+
 /**
  * Set this to true to create two separate APKs instead of one:
  *   - An APK that only works on ARM devices
@@ -96,7 +99,7 @@ def enableSeparateBuildPerCPUArchitecture = false
 /**
  * Run Proguard to shrink the Java bytecode in release builds.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true    // UPDATE THIS LINE
 
 /**
  * The preferred build flavor of JavaScriptCore.
@@ -166,9 +169,10 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            proguardFiles "${background_geolocation.projectDir}/proguard-rules.pro"
         }
     }
 

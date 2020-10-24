@@ -42,6 +42,7 @@ const location = require("./assets/images/Location.png");
 const star = require("./assets/images/star.png");
 const locationgrey = require("./assets/images/locationgrey.png");
 const arrowleft = require("./assets/images/arrow-left.png");
+const arrowRight = require("./assets/images/right-arrow.png");
 
 export default {
   //default colors
@@ -103,6 +104,7 @@ export default {
   locationgrey: locationgrey,
   loginpoint: loginpoint,
   arrowleft,
+  arrowRight,
   calendar: calendar,
   calendar2: calendar2,
   upload2: upload2,
